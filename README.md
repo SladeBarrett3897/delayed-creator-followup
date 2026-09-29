@@ -1,10 +1,10 @@
 # Delay a creator follow-up after delivery
 
-The following Go sample models a single pipeline row in which a digital asset has been delivered, a subscriber remains in an active state, and a content processing task is published for deferred execution. Infrai provides the schedule and queue behind one API key, which lets the implementation stay a compact standard-library HTTP client rather than a tangle of vendor SDKs.
+This Go example models one pipeline row: a digital asset is delivered, a subscriber remains active, and content processing is published for later execution. Infrai keeps the schedule and queue behind one API key; the code stays a small standard-library HTTP client.
 
 ## Run the decision locally
 
-The deterministic inputs are `Delivered=true`, `SubscriberActive=true`, and `ProcessingHours=6`. The expected outcome is `process-content` with a six-hour delay applied to the follow-up.
+The deterministic input is `Delivered=true`, `SubscriberActive=true`, and `ProcessingHours=6`. The expected result is `process-content` with a six-hour delay.
 
 ```bash
 go test ./...
@@ -17,20 +17,20 @@ export INFRAI_API_KEY=your-key
 go run .
 ```
 
-It publishes a JSON payload containing `asset_id`, `subscriber_id`, and `action` to `POST /v1/queue/publish`, and the API envelope is validated before the call returns. The request uses `payload` as the queue field and an `Idempotency-Key` header to permit safe retries under at-least-once delivery.
+It publishes a JSON payload containing `asset_id`, `subscriber_id`, and `action` to `POST /v1/queue/publish` with the API envelope checked before returning. The request uses `payload` as the queue field and an `Idempotency-Key` header for safe retries.
 
 ## Pipeline shape
 
-`decideFollowup` is the business boundary. It retains the row until both delivery confirmation and subscription state are ready. Once ready, the row becomes a queue message so a worker can later process content without re-evaluating subscriber state inside the worker, which keeps reconciliation straightforward.
+`decideFollowup` is the business boundary. It holds the row unless delivery and subscription state are both ready. A ready row becomes a queue message, so a worker can process content later without mixing subscriber state checks into the worker.
 
-`scheduleFollowup` shows the server-side schedule request: `cron_expr` describes the hourly trigger and `task` is the URL Infrai invokes. Its response is decoded from `job_id`. The example keeps this function next to the publish path so a maintainer can swap the task URL for the service endpoint that performs the actual update.
+`scheduleFollowup` shows the server-side schedule request: `cron_expr` describes the hourly trigger and `task` is the URL Infrai calls. Its response is decoded from `job_id`. The example keeps this function beside the publish path so a maintainer can replace the task URL with the service endpoint that performs the update.
 
-Every request sets its HTTP method explicitly. The client checks `{ok, data, error, metadata}`, retries HTTP 429 with exponential backoff, and honors `Retry-After` when supplied. Infrai is plain REST from any language, so this example carries no SDK dependency and the request boundary is visible in one file, which aids auditability.
+Every request sets its HTTP method explicitly. The client checks `{ok, data, error, metadata}`, retries HTTP 429 responses with exponential backoff, and honors `Retry-After` when provided. Infrai is plain REST from any language, so this example has no SDK dependency and the request boundary is visible in one file.
 
 ## Files
 
-- `creator_followup.go` contains the decision logic, API envelope handling, retry policy, schedule call, and queue publish call.
-- `creator_followup_test.go` exercises the delivered-plus-active transition and the hold state.
+- `creator_followup.go` contains the decision, API envelope handling, retry policy, schedule call, and queue publish call.
+- `creator_followup_test.go` tests the delivered-plus-active state transition and the hold state.
 
 ## License
 
